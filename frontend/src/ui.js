@@ -36,28 +36,28 @@ export const PipelineUI = () => {
       onEdgesChange,
       onConnect
     } = useStore(selector, shallow);
-
+  
     const getInitNodeData = (nodeID, type) => getInitialNodeData(type, nodeID);
-
+  
     const onDrop = useCallback(
         (event) => {
           event.preventDefault();
-    
+  
           const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
           if (event?.dataTransfer?.getData('application/reactflow')) {
             const appData = JSON.parse(event.dataTransfer.getData('application/reactflow'));
             const type = appData?.nodeType;
-      
+  
             // check if the dropped element is valid
             if (typeof type === 'undefined' || !type) {
               return;
             }
-      
+  
             const position = reactFlowInstance.project({
               x: event.clientX - reactFlowBounds.left,
               y: event.clientY - reactFlowBounds.top,
             });
-
+  
             const nodeID = getNodeID(type);
             const newNode = {
               id: nodeID,
@@ -65,22 +65,23 @@ export const PipelineUI = () => {
               position,
               data: getInitNodeData(nodeID, type),
             };
-      
+  
             addNode(newNode);
           }
         },
         [reactFlowInstance]
     );
-
+  
     const onDragOver = useCallback((event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
     }, []);
-
+  
     return (
-        <>
-        <div ref={reactFlowWrapper} style={{width: '100wv', height: '70vh'}}>
+        <div ref={reactFlowWrapper} className="pipeline-ui">
             <ReactFlow
+                className="pipeline-ui__reactflow"
+                style={{ width: '100%', height: '100%' }}
                 nodes={nodes}
                 edges={edges}
                 onNodesChange={onNodesChange}
@@ -93,12 +94,12 @@ export const PipelineUI = () => {
                 proOptions={proOptions}
                 snapGrid={[gridSize, gridSize]}
                 connectionLineType='smoothstep'
+                fitView
             >
-                <Background color="#aaa" gap={gridSize} />
-                <Controls />
-                <MiniMap />
+                <Background color="rgba(148, 163, 184, 0.35)" gap={gridSize} />
+                <Controls position="top-right" />
+                <MiniMap pannable zoomable maskColor="rgba(15, 23, 42, 0.75)" />
             </ReactFlow>
         </div>
-        </>
-    )
-}
+    );
+};
