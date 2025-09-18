@@ -1,6 +1,62 @@
 import { Position } from 'reactflow';
 import { createNodeComponent, buildInitialDataFromDefinition } from './nodeFactory';
 
+const TEXT_NODE_BASE_WIDTH = 260;
+const TEXT_NODE_MAX_WIDTH = 520;
+const TEXT_NODE_MIN_ROWS = 3;
+const TEXT_NODE_MAX_ROWS = 20;
+const CHARACTER_WIDTH_APPROXIMATION = 7;
+const TEXT_NODE_HORIZONTAL_PADDING = 120;
+const TEXT_NODE_MIN_HEIGHT = 80;
+const TEXT_NODE_MAX_HEIGHT = 420;
+
+const calculateTextTemplateLayout = (rawText = '') => {
+  const text = typeof rawText === 'string' ? rawText : String(rawText ?? '');
+  const lines = text.split('\n');
+  const normalizedLines = lines.length > 0 ? lines : [''];
+
+  const longestLineLength = normalizedLines.reduce(
+    (max, line) => Math.max(max, line.trimEnd().length),
+    0
+  );
+
+  const widthFromText = longestLineLength * CHARACTER_WIDTH_APPROXIMATION + TEXT_NODE_HORIZONTAL_PADDING;
+  const width = Math.min(TEXT_NODE_MAX_WIDTH, Math.max(TEXT_NODE_BASE_WIDTH, widthFromText));
+
+  const effectiveCharactersPerLine = Math.max(
+    20,
+    Math.floor((width - TEXT_NODE_HORIZONTAL_PADDING) / CHARACTER_WIDTH_APPROXIMATION)
+  );
+
+  const approximateRowCount = normalizedLines.reduce((count, line) => {
+    const length = line.length || 1;
+    return count + Math.max(1, Math.ceil(length / effectiveCharactersPerLine));
+  }, 0);
+
+  const rows = Math.min(TEXT_NODE_MAX_ROWS, Math.max(TEXT_NODE_MIN_ROWS, approximateRowCount));
+  const minHeight = Math.min(TEXT_NODE_MAX_HEIGHT, Math.max(TEXT_NODE_MIN_HEIGHT, rows * 22));
+
+  return { width, rows, minHeight };
+};
+
+const extractTemplateVariables = (rawText = '') => {
+  const text = typeof rawText === 'string' ? rawText : String(rawText ?? '');
+  const pattern = /{{\s*([a-zA-Z_$][0-9a-zA-Z_$]*)\s*}}/g;
+  const variables = [];
+  const seen = new Set();
+
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    const variable = match[1];
+    if (!seen.has(variable)) {
+      seen.add(variable);
+      variables.push(variable);
+    }
+  }
+
+  return variables;
+};
+
 const nodeDefinitions = {
   customInput: {
     type: 'customInput',
@@ -94,16 +150,43 @@ const nodeDefinitions = {
         rows: 3,
         placeholder: 'Hello {{name}}',
         defaultValue: '{{input}}',
+        getRows: ({ values }) => {
+          const layout = calculateTextTemplateLayout(values?.text ?? '');
+          return layout.rows;
+        },
+        getInputStyle: ({ values }) => {
+          const layout = calculateTextTemplateLayout(values?.text ?? '');
+          return { minHeight: layout.minHeight };
+        },
       },
     ],
-    handles: [
-      {
-        type: 'source',
-        position: Position.Right,
-        id: ({ id }) => `${id}-output`,
-        label: 'Text',
-      },
-    ],
+    handles: ({ id, values }) => {
+      const variables = extractTemplateVariables(values?.text ?? '');
+      const variableHandles = variables.map((variable, index) => {
+        const verticalPosition = ((index + 1) / (variables.length + 1)) * 100;
+        return {
+          type: 'target',
+          position: Position.Left,
+          id: `${id}-variable-${variable}`,
+          label: variable,
+          style: { top: `${verticalPosition}%` },
+        };
+      });
+
+      return [
+        ...variableHandles,
+        {
+          type: 'source',
+          position: Position.Right,
+          id: `${id}-output`,
+          label: 'Text',
+        },
+      ];
+    },
+    getDynamicStyle: ({ values }) => {
+      const layout = calculateTextTemplateLayout(values?.text ?? '');
+      return { width: layout.width };
+    },
   },
   llm: {
     type: 'llm',

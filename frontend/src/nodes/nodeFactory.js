@@ -245,7 +245,14 @@ export const createNodeComponent = (definition) => {
         );
       }
 
+      const fieldContext = { id, data, values };
       const value = values[field.name];
+      const inputStyleOverrides =
+        typeof field.getInputStyle === 'function' ? field.getInputStyle(fieldContext) : undefined;
+      const inputProps = typeof field.getInputProps === 'function' ? field.getInputProps(fieldContext) : {};
+      const { rows: inputPropsRows, ...restInputProps } = inputProps || {};
+      const computedRows = typeof field.getRows === 'function' ? field.getRows(fieldContext) : field.rows;
+      const finalRows = inputPropsRows ?? computedRows;
 
       if (field.type === 'checkbox') {
         return (
@@ -271,15 +278,17 @@ export const createNodeComponent = (definition) => {
             <textarea
               value={value}
               onChange={handleInputChange(field)}
-              style={mergeStyles(textareaStyle, field.inputStyle)}
+              style={mergeStyles(textareaStyle, field.inputStyle, inputStyleOverrides)}
               placeholder={field.placeholder}
-              rows={field.rows}
+              rows={finalRows}
+              {...restInputProps}
             />
           ) : field.type === 'select' ? (
             <select
               value={value}
               onChange={handleSelectChange(field)}
-              style={mergeStyles(selectStyle, field.inputStyle)}
+              style={mergeStyles(selectStyle, field.inputStyle, inputStyleOverrides)}
+              {...restInputProps}
             >
               {field.options?.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -292,11 +301,12 @@ export const createNodeComponent = (definition) => {
               type={field.inputType || field.type || 'text'}
               value={value}
               onChange={handleInputChange(field)}
-              style={mergeStyles(inputStyle, field.inputStyle)}
+              style={mergeStyles(inputStyle, field.inputStyle, inputStyleOverrides)}
               placeholder={field.placeholder}
               min={field.min}
               max={field.max}
               step={field.step}
+              {...restInputProps}
             />
           )}
           {field.helperText ? (
@@ -306,10 +316,19 @@ export const createNodeComponent = (definition) => {
       );
     };
 
+    const nodeContext = { id, data, values };
+    const dynamicStyle =
+      typeof definition.getDynamicStyle === 'function' ? definition.getDynamicStyle(nodeContext) : {};
+    const resolvedHandles =
+      typeof definition.handles === 'function' ? definition.handles(nodeContext) : definition.handles;
+    const handlesToRender = Array.isArray(resolvedHandles) ? resolvedHandles : [];
+    const baseWidth = definition.width || baseContainerStyle.width;
+    const containerWidth = dynamicStyle?.width !== undefined ? dynamicStyle.width : baseWidth;
+
     return (
       <div
-        style={mergeStyles(baseContainerStyle, definition.style, {
-          width: definition.width || baseContainerStyle.width,
+        style={mergeStyles(baseContainerStyle, definition.style, dynamicStyle, {
+          width: containerWidth,
           borderTop: `4px solid ${accentColor}`,
         })}
       >
@@ -341,7 +360,7 @@ export const createNodeComponent = (definition) => {
 
         {definition.footer ? <div style={{ ...descriptionStyle, fontSize: '11px' }}>{definition.footer}</div> : null}
 
-        {definition.handles?.map((handle, index) => {
+        {handlesToRender.map((handle, index) => {
           const handleId = typeof handle.id === 'function' ? handle.id({ id, data, values }) : handle.id || `${id}-handle-${index}`;
           const position = handle.position || Position.Right;
           return (
