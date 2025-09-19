@@ -1,7 +1,8 @@
 import './App.css';
-import { PipelineToolbar } from './toolbar';
-import { PipelineUI } from './ui';
-import { SubmitButton } from './submit';
+
+import { PipelineCanvas } from './components/Canvas/PipelineCanvas';
+import { PipelineToolbar } from './components/Toolbar/PipelineToolbar';
+import { SubmitButton } from './components/Submit/SubmitButton';
 
 function App() {
   return (
@@ -51,7 +52,7 @@ function App() {
               </button>
             </div>
           </div>
-          <PipelineUI />
+          <PipelineCanvas />
         </section>
       </main>
 

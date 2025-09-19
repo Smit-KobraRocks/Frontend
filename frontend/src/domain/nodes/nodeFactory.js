@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position } from 'reactflow';
-import { useStore } from '../store';
+
+import { usePipelineStore } from '../../store/pipelineStore';
 
 const baseContainerStyle = {
   width: 260,
@@ -179,7 +180,7 @@ export const createNodeComponent = (definition) => {
   const accentColor = definition.accentColor || '#6366F1';
 
   return ({ id, data }) => {
-    const updateNodeField = useStore((state) => state.updateNodeField);
+    const updateNodeField = usePipelineStore((state) => state.updateNodeField);
 
     const initialValues = useMemo(() => {
       const context = { id, data };
@@ -208,28 +209,40 @@ export const createNodeComponent = (definition) => {
       });
     }, [id, data, definition, updateNodeField]);
 
-    const setFieldValue = (fieldName, value) => {
-      setValues((prev) => ({ ...prev, [fieldName]: value }));
-      updateNodeField(id, fieldName, value);
-    };
+    const setFieldValue = useCallback(
+      (fieldName, value) => {
+        setValues((prev) => ({ ...prev, [fieldName]: value }));
+        updateNodeField(id, fieldName, value);
+      },
+      [id, updateNodeField]
+    );
 
-    const handleInputChange = (field) => (event) => {
-      const { value } = event.target;
-      if (field.type === 'number') {
-        const nextValue = value === '' ? '' : Number(value);
-        setFieldValue(field.name, nextValue);
-      } else {
-        setFieldValue(field.name, value);
-      }
-    };
+    const handleInputChange = useCallback(
+      (field) => (event) => {
+        const { value } = event.target;
+        if (field.type === 'number') {
+          const nextValue = value === '' ? '' : Number(value);
+          setFieldValue(field.name, nextValue);
+        } else {
+          setFieldValue(field.name, value);
+        }
+      },
+      [setFieldValue]
+    );
 
-    const handleSelectChange = (field) => (event) => {
-      setFieldValue(field.name, event.target.value);
-    };
+    const handleSelectChange = useCallback(
+      (field) => (event) => {
+        setFieldValue(field.name, event.target.value);
+      },
+      [setFieldValue]
+    );
 
-    const handleCheckboxChange = (field) => (event) => {
-      setFieldValue(field.name, event.target.checked);
-    };
+    const handleCheckboxChange = useCallback(
+      (field) => (event) => {
+        setFieldValue(field.name, event.target.checked);
+      },
+      [setFieldValue]
+    );
 
     const renderField = (field) => {
       if (field.render) {
