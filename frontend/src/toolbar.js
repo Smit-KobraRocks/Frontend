@@ -1,9 +1,32 @@
 // toolbar.js
 
+import { useState } from 'react';
+
 import { DraggableNode } from './draggableNode';
 import { toolbarNodes } from './nodes';
 
 export const PipelineToolbar = () => {
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const query = searchTerm.trim().toLowerCase();
+    const filteredToolbarNodes = query
+        ? toolbarNodes.filter(({ label, description, type }) => {
+              const normalizedLabel = label?.toLowerCase() ?? '';
+              const normalizedDescription = description?.toLowerCase() ?? '';
+              const normalizedType = type?.toLowerCase() ?? '';
+
+              return (
+                  normalizedLabel.includes(query) ||
+                  normalizedDescription.includes(query) ||
+                  normalizedType.includes(query)
+              );
+          })
+        : toolbarNodes;
+
+    const handleSearchChange = (event) => {
+        setSearchTerm(event.target.value);
+    };
+
     return (
         <div className="toolbar">
             <div className="toolbar__utilities">
@@ -14,20 +37,32 @@ export const PipelineToolbar = () => {
                             fill="currentColor"
                         />
                     </svg>
-                    <input type="search" placeholder="Search nodes" aria-label="Search nodes" />
+                    <input
+                        type="search"
+                        placeholder="Search nodes"
+                        aria-label="Search nodes"
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                    />
                 </div>
                 <span className="toolbar__hint">Drag any block to the canvas to begin building.</span>
             </div>
             <div className="toolbar__grid">
-                {toolbarNodes.map(({ type, label, description, accentColor }) => (
-                    <DraggableNode
-                        key={type}
-                        type={type}
-                        label={label}
-                        description={description}
-                        accentColor={accentColor}
-                    />
-                ))}
+                {filteredToolbarNodes.length === 0 ? (
+                    <div className="toolbar__empty-state" role="status">
+                        No nodes match your search.
+                    </div>
+                ) : (
+                    filteredToolbarNodes.map(({ type, label, description, accentColor }) => (
+                        <DraggableNode
+                            key={type}
+                            type={type}
+                            label={label}
+                            description={description}
+                            accentColor={accentColor}
+                        />
+                    ))
+                )}
             </div>
         </div>
     );
