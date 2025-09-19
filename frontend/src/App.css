@@ -203,6 +203,16 @@
   scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
 }
 
+.toolbar__empty-state {
+  grid-column: 1 / -1;
+  padding: 24px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.52);
+  color: rgba(226, 232, 240, 0.72);
+  text-align: center;
+  font-size: 0.9rem;
+}
+
 .toolbar__grid::-webkit-scrollbar {
   width: 6px;
 }
