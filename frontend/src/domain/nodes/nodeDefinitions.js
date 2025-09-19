@@ -1,65 +1,38 @@
 import { Position } from 'reactflow';
+
+import { BranchEvaluationMode } from '../../enums/branchEvaluationMode';
+import { DelayUnit } from '../../enums/delayUnit';
+import { HandleType } from '../../enums/handleType';
+import { HttpMethod } from '../../enums/httpMethod';
+import { NodeType } from '../../enums/nodeTypes';
+import { calculateTextTemplateLayout, extractTemplateVariables } from './textTemplateUtils';
 import { createNodeComponent, buildInitialDataFromDefinition } from './nodeFactory';
 
-const TEXT_NODE_BASE_WIDTH = 260;
-const TEXT_NODE_MAX_WIDTH = 520;
-const TEXT_NODE_MIN_ROWS = 3;
-const TEXT_NODE_MAX_ROWS = 20;
-const CHARACTER_WIDTH_APPROXIMATION = 7;
-const TEXT_NODE_HORIZONTAL_PADDING = 120;
-const TEXT_NODE_MIN_HEIGHT = 80;
-const TEXT_NODE_MAX_HEIGHT = 420;
+const createSelectOptions = (values) => values.map((value) => ({ label: value, value }));
 
-const calculateTextTemplateLayout = (rawText = '') => {
-  const text = typeof rawText === 'string' ? rawText : String(rawText ?? '');
-  const lines = text.split('\n');
-  const normalizedLines = lines.length > 0 ? lines : [''];
+const delayUnitOptions = createSelectOptions([
+  DelayUnit.SECONDS,
+  DelayUnit.MINUTES,
+  DelayUnit.HOURS,
+]);
 
-  const longestLineLength = normalizedLines.reduce(
-    (max, line) => Math.max(max, line.trimEnd().length),
-    0
-  );
+const httpMethodOptions = createSelectOptions([
+  HttpMethod.GET,
+  HttpMethod.POST,
+  HttpMethod.PUT,
+  HttpMethod.PATCH,
+  HttpMethod.DELETE,
+]);
 
-  const widthFromText = longestLineLength * CHARACTER_WIDTH_APPROXIMATION + TEXT_NODE_HORIZONTAL_PADDING;
-  const width = Math.min(TEXT_NODE_MAX_WIDTH, Math.max(TEXT_NODE_BASE_WIDTH, widthFromText));
-
-  const effectiveCharactersPerLine = Math.max(
-    20,
-    Math.floor((width - TEXT_NODE_HORIZONTAL_PADDING) / CHARACTER_WIDTH_APPROXIMATION)
-  );
-
-  const approximateRowCount = normalizedLines.reduce((count, line) => {
-    const length = line.length || 1;
-    return count + Math.max(1, Math.ceil(length / effectiveCharactersPerLine));
-  }, 0);
-
-  const rows = Math.min(TEXT_NODE_MAX_ROWS, Math.max(TEXT_NODE_MIN_ROWS, approximateRowCount));
-  const minHeight = Math.min(TEXT_NODE_MAX_HEIGHT, Math.max(TEXT_NODE_MIN_HEIGHT, rows * 22));
-
-  return { width, rows, minHeight };
-};
-
-const extractTemplateVariables = (rawText = '') => {
-  const text = typeof rawText === 'string' ? rawText : String(rawText ?? '');
-  const pattern = /{{\s*([a-zA-Z_$][0-9a-zA-Z_$]*)\s*}}/g;
-  const variables = [];
-  const seen = new Set();
-
-  let match;
-  while ((match = pattern.exec(text)) !== null) {
-    const variable = match[1];
-    if (!seen.has(variable)) {
-      seen.add(variable);
-      variables.push(variable);
-    }
-  }
-
-  return variables;
-};
+const branchEvaluationModeOptions = [
+  { label: 'Text match', value: BranchEvaluationMode.TEXT_MATCH },
+  { label: 'Numeric threshold', value: BranchEvaluationMode.NUMERIC_THRESHOLD },
+  { label: 'Custom script', value: BranchEvaluationMode.CUSTOM_SCRIPT },
+];
 
 const nodeDefinitions = {
-  customInput: {
-    type: 'customInput',
+  [NodeType.CUSTOM_INPUT]: {
+    type: NodeType.CUSTOM_INPUT,
     label: 'Input',
     title: 'Input',
     subtitle: 'Start of the flow',
@@ -73,7 +46,7 @@ const nodeDefinitions = {
         label: 'Name',
         type: 'text',
         placeholder: 'input_name',
-        getInitialValue: ({ id }) => (id ? id.replace('customInput-', 'input_') : 'input'),
+        getInitialValue: ({ id }) => (id ? id.replace(`${NodeType.CUSTOM_INPUT}-`, 'input_') : 'input'),
         helperText: 'Used to reference this value in later nodes.',
       },
       {
@@ -89,15 +62,15 @@ const nodeDefinitions = {
     ],
     handles: [
       {
-        type: 'source',
+        type: HandleType.SOURCE,
         position: Position.Right,
         id: ({ id }) => `${id}-value`,
         label: 'Value',
       },
     ],
   },
-  customOutput: {
-    type: 'customOutput',
+  [NodeType.CUSTOM_OUTPUT]: {
+    type: NodeType.CUSTOM_OUTPUT,
     label: 'Output',
     title: 'Output',
     subtitle: 'End of the flow',
@@ -111,7 +84,7 @@ const nodeDefinitions = {
         label: 'Name',
         type: 'text',
         placeholder: 'output_name',
-        getInitialValue: ({ id }) => (id ? id.replace('customOutput-', 'output_') : 'output'),
+        getInitialValue: ({ id }) => (id ? id.replace(`${NodeType.CUSTOM_OUTPUT}-`, 'output_') : 'output'),
       },
       {
         name: 'outputType',
@@ -126,15 +99,15 @@ const nodeDefinitions = {
     ],
     handles: [
       {
-        type: 'target',
+        type: HandleType.TARGET,
         position: Position.Left,
         id: ({ id }) => `${id}-value`,
         label: 'Value',
       },
     ],
   },
-  text: {
-    type: 'text',
+  [NodeType.TEXT]: {
+    type: NodeType.TEXT,
     label: 'Text Template',
     title: 'Text Template',
     subtitle: 'Format dynamic strings',
@@ -150,14 +123,10 @@ const nodeDefinitions = {
         rows: 3,
         placeholder: 'Hello {{name}}',
         defaultValue: '{{input}}',
-        getRows: ({ values }) => {
-          const layout = calculateTextTemplateLayout(values?.text ?? '');
-          return layout.rows;
-        },
-        getInputStyle: ({ values }) => {
-          const layout = calculateTextTemplateLayout(values?.text ?? '');
-          return { minHeight: layout.minHeight };
-        },
+        getRows: ({ values }) => calculateTextTemplateLayout(values?.text ?? '').rows,
+        getInputStyle: ({ values }) => ({
+          minHeight: calculateTextTemplateLayout(values?.text ?? '').minHeight,
+        }),
       },
     ],
     handles: ({ id, values }) => {
@@ -165,7 +134,7 @@ const nodeDefinitions = {
       const variableHandles = variables.map((variable, index) => {
         const verticalPosition = ((index + 1) / (variables.length + 1)) * 100;
         return {
-          type: 'target',
+          type: HandleType.TARGET,
           position: Position.Left,
           id: `${id}-variable-${variable}`,
           label: variable,
@@ -176,20 +145,17 @@ const nodeDefinitions = {
       return [
         ...variableHandles,
         {
-          type: 'source',
+          type: HandleType.SOURCE,
           position: Position.Right,
           id: `${id}-output`,
           label: 'Text',
         },
       ];
     },
-    getDynamicStyle: ({ values }) => {
-      const layout = calculateTextTemplateLayout(values?.text ?? '');
-      return { width: layout.width };
-    },
+    getDynamicStyle: ({ values }) => ({ width: calculateTextTemplateLayout(values?.text ?? '').width }),
   },
-  llm: {
-    type: 'llm',
+  [NodeType.LLM]: {
+    type: NodeType.LLM,
     label: 'LLM',
     title: 'LLM',
     subtitle: 'Call a language model',
@@ -199,21 +165,21 @@ const nodeDefinitions = {
     toolbarDescription: 'Generate text',
     handles: [
       {
-        type: 'target',
+        type: HandleType.TARGET,
         position: Position.Left,
         id: ({ id }) => `${id}-system`,
         label: 'System',
         style: { top: '38%' },
       },
       {
-        type: 'target',
+        type: HandleType.TARGET,
         position: Position.Left,
         id: ({ id }) => `${id}-prompt`,
         label: 'Prompt',
         style: { top: '62%' },
       },
       {
-        type: 'source',
+        type: HandleType.SOURCE,
         position: Position.Right,
         id: ({ id }) => `${id}-response`,
         label: 'Response',
@@ -221,8 +187,8 @@ const nodeDefinitions = {
     ],
     footer: 'Supports streaming responses and tool usage.',
   },
-  delay: {
-    type: 'delay',
+  [NodeType.DELAY]: {
+    type: NodeType.DELAY,
     label: 'Delay',
     title: 'Delay',
     subtitle: 'Pause execution',
@@ -251,32 +217,28 @@ const nodeDefinitions = {
         name: 'durationUnit',
         label: 'Unit',
         type: 'select',
-        defaultValue: 'seconds',
-        options: [
-          { label: 'Seconds', value: 'seconds' },
-          { label: 'Minutes', value: 'minutes' },
-          { label: 'Hours', value: 'hours' },
-        ],
+        defaultValue: DelayUnit.SECONDS,
+        options: delayUnitOptions,
       },
     ],
     handles: [
       {
-        type: 'target',
+        type: HandleType.TARGET,
         position: Position.Left,
         id: ({ id }) => `${id}-input`,
         label: 'Input',
         style: { top: '50%' },
       },
       {
-        type: 'source',
+        type: HandleType.SOURCE,
         position: Position.Right,
         id: ({ id }) => `${id}-output`,
         label: 'Output',
       },
     ],
   },
-  branch: {
-    type: 'branch',
+  [NodeType.BRANCH]: {
+    type: NodeType.BRANCH,
     label: 'Branch',
     title: 'Branch',
     subtitle: 'Conditional routing',
@@ -296,31 +258,27 @@ const nodeDefinitions = {
         name: 'evaluationMode',
         label: 'Mode',
         type: 'select',
-        defaultValue: 'text-match',
-        options: [
-          { label: 'Text match', value: 'text-match' },
-          { label: 'Numeric threshold', value: 'numeric-threshold' },
-          { label: 'Custom script', value: 'custom-script' },
-        ],
+        defaultValue: BranchEvaluationMode.TEXT_MATCH,
+        options: branchEvaluationModeOptions,
       },
     ],
     handles: [
       {
-        type: 'target',
+        type: HandleType.TARGET,
         position: Position.Left,
         id: ({ id }) => `${id}-input`,
         label: 'Input',
         style: { top: '50%' },
       },
       {
-        type: 'source',
+        type: HandleType.SOURCE,
         position: Position.Right,
         id: ({ id }) => `${id}-true`,
         label: 'True',
         style: { top: '42%' },
       },
       {
-        type: 'source',
+        type: HandleType.SOURCE,
         position: Position.Right,
         id: ({ id }) => `${id}-false`,
         label: 'False',
@@ -329,8 +287,8 @@ const nodeDefinitions = {
     ],
     footer: 'Route based on string, numeric, or scripted logic.',
   },
-  promptTemplate: {
-    type: 'promptTemplate',
+  [NodeType.PROMPT_TEMPLATE]: {
+    type: NodeType.PROMPT_TEMPLATE,
     label: 'Prompt Template',
     title: 'Prompt Template',
     subtitle: 'Reusable prompt builder',
@@ -356,21 +314,21 @@ const nodeDefinitions = {
     ],
     handles: [
       {
-        type: 'target',
+        type: HandleType.TARGET,
         position: Position.Left,
         id: ({ id }) => `${id}-data`,
         label: 'Data',
         style: { top: '42%' },
       },
       {
-        type: 'target',
+        type: HandleType.TARGET,
         position: Position.Left,
         id: ({ id }) => `${id}-context`,
         label: 'Context',
         style: { top: '68%' },
       },
       {
-        type: 'source',
+        type: HandleType.SOURCE,
         position: Position.Right,
         id: ({ id }) => `${id}-prompt`,
         label: 'Prompt',
@@ -378,8 +336,8 @@ const nodeDefinitions = {
     ],
     footer: 'Share templates across flows to keep prompts consistent.',
   },
-  httpRequest: {
-    type: 'httpRequest',
+  [NodeType.HTTP_REQUEST]: {
+    type: NodeType.HTTP_REQUEST,
     label: 'HTTP Request',
     title: 'HTTP Request',
     subtitle: 'Call external APIs',
@@ -392,14 +350,8 @@ const nodeDefinitions = {
         name: 'httpMethod',
         label: 'Method',
         type: 'select',
-        defaultValue: 'POST',
-        options: [
-          { label: 'GET', value: 'GET' },
-          { label: 'POST', value: 'POST' },
-          { label: 'PUT', value: 'PUT' },
-          { label: 'PATCH', value: 'PATCH' },
-          { label: 'DELETE', value: 'DELETE' },
-        ],
+        defaultValue: HttpMethod.POST,
+        options: httpMethodOptions,
       },
       {
         name: 'httpUrl',
@@ -420,22 +372,22 @@ const nodeDefinitions = {
     ],
     handles: [
       {
-        type: 'target',
+        type: HandleType.TARGET,
         position: Position.Left,
         id: ({ id }) => `${id}-payload`,
         label: 'Payload',
         style: { top: '55%' },
       },
       {
-        type: 'source',
+        type: HandleType.SOURCE,
         position: Position.Right,
         id: ({ id }) => `${id}-response`,
         label: 'Response',
       },
     ],
   },
-  embeddings: {
-    type: 'embeddings',
+  [NodeType.EMBEDDINGS]: {
+    type: NodeType.EMBEDDINGS,
     label: 'Embeddings',
     title: 'Embeddings',
     subtitle: 'Vectorize text',
@@ -472,14 +424,14 @@ const nodeDefinitions = {
     ],
     handles: [
       {
-        type: 'target',
+        type: HandleType.TARGET,
         position: Position.Left,
         id: ({ id }) => `${id}-text`,
         label: 'Text',
         style: { top: '55%' },
       },
       {
-        type: 'source',
+        type: HandleType.SOURCE,
         position: Position.Right,
         id: ({ id }) => `${id}-vector`,
         label: 'Vector',
@@ -494,12 +446,14 @@ export const nodeTypes = Object.fromEntries(
   Object.entries(nodeDefinitions).map(([type, definition]) => [type, createNodeComponent(definition)])
 );
 
-export const toolbarNodes = Object.values(nodeDefinitions).map(({ type, label, toolbarDescription, accentColor }) => ({
-  type,
-  label,
-  description: toolbarDescription,
-  accentColor,
-}));
+export const toolbarNodes = Object.values(nodeDefinitions).map(
+  ({ type, label, toolbarDescription, accentColor }) => ({
+    type,
+    label,
+    description: toolbarDescription,
+    accentColor,
+  })
+);
 
 export const getInitialNodeData = (type, nodeId, data = {}) => {
   const definition = nodeDefinitions[type];

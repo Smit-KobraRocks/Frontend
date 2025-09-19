@@ -1,42 +1,27 @@
-// submit.js
-
 import { useCallback } from 'react';
 import { shallow } from 'zustand/shallow';
 
-import { useStore } from './store';
+import { pipelineService } from '../../services/pipelineService';
+import { usePipelineStore } from '../../store/pipelineStore';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
-
-const selector = (state) => ({
+const selectPipelineSnapshot = (state) => ({
   nodes: state.nodes,
   edges: state.edges,
 });
 
+const buildSubmissionSummary = ({ num_nodes: nodeCount, num_edges: edgeCount, is_dag: isDag }) =>
+  `Pipeline summary:\n` +
+  `• Nodes: ${nodeCount}\n` +
+  `• Edges: ${edgeCount}\n` +
+  `• Forms DAG: ${isDag ? 'Yes' : 'No'}`;
+
 export const SubmitButton = () => {
-  const { nodes, edges } = useStore(selector, shallow);
+  const { nodes, edges } = usePipelineStore(selectPipelineSnapshot, shallow);
 
   const handleSubmit = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/pipelines/parse`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ nodes, edges }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      window.alert(
-        `Pipeline summary:\n` +
-          `• Nodes: ${result.num_nodes}\n` +
-          `• Edges: ${result.num_edges}\n` +
-          `• Forms DAG: ${result.is_dag ? 'Yes' : 'No'}`
-      );
+      const result = await pipelineService.submitPipeline({ nodes, edges });
+      window.alert(buildSubmissionSummary(result));
     } catch (error) {
       console.error('Failed to submit pipeline:', error);
       window.alert('Unable to submit pipeline. Please try again.');
